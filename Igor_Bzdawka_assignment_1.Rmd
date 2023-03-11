@@ -1,0 +1,265 @@
+---
+title: "Igor_Bzdawka_assignment_1"
+author: "Igor Bzdawka"
+date: "2022-11-22"
+output: html_document
+---
+
+<style type="text/css">
+  body{
+  font-size: 11pt;
+}
+</style>
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+# Homework Assignment Report
+
+## Introduction
+
+This report is a summary of the homework assignment nr 1. The assignment was focused on
+learning *dplyr* and *data.table* packages, as well as revising the R base functions in 
+data processing. As the main task, five SQL queries were given in order to implement them
+in four ways each:\
+
+* __sqldf()__ function,
+* __base R__ functions,
+* __dplyr__ functions,
+* __data.table__ functions.
+
+The data that the queries read from come from the website <https://travel.stackexchange.com/>.
+The data frames given are:\
+
+* Badges.csv.gz,
+* Comments.csv.gz,
+* Posts.csv.gz,
+* Users.csv.gz,
+* Votes.csv.gz.
+
+## Setup
+
+To be able to see the results of the functions, we first need to refer to the script file with solutions as follows:
+``` {r}
+source("Igor_Bzdawka_assignment_1.R")
+```
+The line above works only when the .Rmd file and the .R file are in the same directory.
+
+
+We also need to provide the packages mentioned above, so that the functions have access to them:
+```{r warning=FALSE, message=FALSE, results='hide'}
+install.packages("sqldf", repos="https://cran.mi2.ai/")
+install.packages("dplyr", repos="https://cran.mi2.ai/")
+install.packages("data.table", repos="https://cran.mi2.ai/")
+
+library(sqldf)
+library(dplyr)
+library(data.table)
+```
+
+The **repos** argument in *install.packages()* is providing a CRAN mirror URL, which is located in
+ our Warsaw University of Technology.
+
+The final setup step will be to provide the tables that make up our database:
+```{r  warning=FALSE, message=FALSE, results='hide'}
+Badges <- read.csv("Badges.csv.gz")
+Comments <- read.csv("Comments.csv.gz")
+Posts <- read.csv("Posts.csv.gz")
+Users <- read.csv("Users.csv.gz")
+Votes <- read.csv("Votes.csv.gz")
+```
+Naturally, this will also work only provided the packages are in the same directory as the .Rmd file generating this HTML document.
+
+## Solutions analysis
+
+The output of **sqldf()** function in each case will serve as the reference solution, as this function
+requires simply pasting the SQL as an argument. 
+
+
+In order to confirm that the results of each function are the same, we're going to apply a function
+**dplyr::all_equal()** on 3 pairs of functions, where in each pair one of the functions is going to be *sqldf()* function,
+and the other function will be either *base*, *dplyr* or *data.table* function. These three comparisons will show whether 
+the outputs are equal to one another. If all 3 comparisons return __*TRUE*__, it means that all functions' outputs are equal.
+
+Additionally, for each query there will be presented an output of a function **microbenchmark::microbenchmark()**, which will show the
+execution times of each implementation. This will allow for comparison of efficiency of each method.
+
+
+### Query 1
+
+#### Interpretation and Discussion
+
+The first query returns the total number of posts for each year. The output is grouped by year in ascending order. As this query is relatively short and easy, there is not much else to say about it.
+
+Both this and other further implementations include transforming the result of some functions into *data.frame*. This is because the **_sqldf()_** function is returning precisely this data type, and this procedure has been applied to keep the consistency of outputs.
+
+#### Output Correctness Comparison
+
+The results of comparing *base_1()*, *dplyr_1()* and *data.table_1()* with *sqldf_1()* are presented below:
+
+```{r warning=FALSE, message=FALSE}
+rbind(
+  all_equal(sqldf_1(Posts),base_1(Posts),convert = TRUE),
+  all_equal(sqldf_1(Posts),dplyr_1(Posts),convert = TRUE),
+  all_equal(sqldf_1(Posts),data.table_1(Posts),convert = TRUE)
+     )
+
+```
+
+As we can see, all the functions return the same output.
+
+The **convert** argument in *all_equal()* function makes sure that similar classes, like numeric classes, are considered one and the same. 
+
+#### Execution Time Comparison
+
+Now let's use the **microbenchmark::microbenchmark()** function on the 4 implementations and analyze the result:
+
+```{r warning=FALSE, message=FALSE}
+microbenchmark::microbenchmark(
+  sqldf=sqldf_1(Posts),
+  base=base_1(Posts),
+  dplyr=dplyr_1(Posts),
+  data.table=data.table_1(Posts),
+  times = 5
+)
+```
+The **times** argument in this function defines how many times each function is supposed to be evaluated, which is basis for the statistics that the function provides. With the _default_ variable being equal to **100**, calculating this and the following queries would take a long time (or rather it would for my relatively weak computer), so the number of times has been decreased, maintaining the accuracy of measurements.
+
+### Query 2
+
+#### Interpretation and Discussion
+This query represents the scoreboard, which displays the top 10 users which posts' sum of views was the greatest. The scoreboard includes the *ID* of the user, their *name* on the website and *total number of views* of all of the user's posts.
+
+This task requires joining two tables together, so the first thing to do is to find both of them. The first table is simply *Users* table, but it requires only columns *Id* and *DisplayName*, so in each task we select only them. The second table in all cases has been called **_tv_**, which stands for **_TotalViews_**, since this is the only column we need from this table. The result, which is the product of merging the two tables, is formatted and returned.
+
+#### Output Correctness Comparison
+
+Now it's time to compare all functions:
+```{r warning=FALSE, message=FALSE}
+rbind(
+  all_equal(sqldf_2(Users, Posts),base_2(Users, Posts),convert = TRUE),
+  all_equal(sqldf_2(Users, Posts),dplyr_2(Users, Posts),convert = TRUE),
+  all_equal(sqldf_2(Users, Posts),data.table_2(Users, Posts),convert = TRUE)
+     )
+
+```
+
+#### Execution Time Comparison
+
+The results of measuring execution time:
+```{r warning=FALSE, message=FALSE}
+microbenchmark::microbenchmark(
+  sqldf=sqldf_2(Users, Posts),
+  base=base_2(Users, Posts),
+  dplyr=dplyr_2(Users, Posts),
+  data.table=data.table_2(Users, Posts),
+  times = 5
+)
+```
+
+### Query 3
+
+#### Interpretation and Discussion
+The third query returns a table showing, for each year, the name of the badge that was most frequently given, along with a fraction - the number of times it was given, divided by the number of all badges given in this year, expressed as **_MaxPercentage_**. 
+
+Again, this task includes joining two tables - the first one, named **_BadgesNames_**, in the code is called **_bn_** for short, whereas the second one kept its name, being **_BadgesYearly_**. Their fusion, called **_badgesmerge_**, is the base for the result of the function. 
+
+
+#### Output Correctness Comparison
+
+The comparison functions give the following outputs:
+```{r warning=FALSE, message=FALSE}
+rbind(
+  all_equal(sqldf_3(Badges),base_3(Badges),convert = TRUE),
+  all_equal(sqldf_3(Badges),dplyr_3(Badges),convert = TRUE),
+  all_equal(sqldf_3(Badges),data.table_3(Badges),convert = TRUE)
+     )
+
+```
+
+#### Execution Time Comparison
+
+
+```{r warning=FALSE, message=FALSE}
+microbenchmark::microbenchmark(
+  sqldf=sqldf_3(Badges),
+  base=base_3(Badges),
+  dplyr=dplyr_3(Badges),
+  data.table=data.table_3(Badges),
+  times = 5
+)
+```
+
+### Query 4
+
+#### Interpretation and Discussion
+The query no. 4 returns a table, which presents 10 posts from the website, which total score gained by all the comments under them was the biggest. The table provides the **_titles_** of the posts, the **_number of comments_** under each post, the **_total view number_** of each post, the **_total score of comments_** mentioned above, the **_name_** of the posting user, their **_reputation_** score and, if given, their **_location_**.
+
+The query got visibly more complicated. In order to achieve the final table, two other tables needed to be merged together - a table **_Users_** and another custom table, called **_PostsBestComments_**, referred to in code as **_pbc_**. On the other hand, to create *pbc* table, we needed to join two other tables: a given table **_Posts_** and another custom table, called **_CmtTotScr_**, known for the code as **_cts_** table. This table contains the total score of comments and, as it is the table that is nested the deepest, the implementation needed to start with finding it first. The merge of *cts* and *Posts* connected posts to their comments, as well as allowed to access the total score of comments. Now, having the *pbc* table, it is finally possible to join it with *Users*, which, after formatting output, gives the desired result. 
+
+
+#### Output Correctness Comparison
+
+
+```{r warning=FALSE, message=FALSE}
+rbind(
+  all_equal(sqldf_4(Comments, Posts, Users),base_4(Comments, Posts, Users),convert = TRUE),
+  all_equal(sqldf_4(Comments, Posts, Users),dplyr_4(Comments, Posts, Users),convert = TRUE),
+  all_equal(sqldf_4(Comments, Posts, Users),data.table_4(Comments, Posts, Users),convert = TRUE)
+     )
+
+```
+
+#### Execution Time Comparison
+
+
+```{r warning=FALSE, message=FALSE}
+microbenchmark::microbenchmark(
+  sqldf=sqldf_4(Comments, Posts, Users),
+  base=base_4(Comments, Posts, Users),
+  dplyr=dplyr_4(Comments, Posts, Users),
+  data.table=data.table_4(Comments, Posts, Users),
+  times = 5
+)
+```
+
+### Query 5
+
+#### Interpretation and Discussion
+
+The last query gives 20 rows of result. The output table is the top 20 posts, ordered by the number of votes they got during the **COVID pandemic**, which was a period of time between year **2019 and 2021**. The posts shown in the scoreboard were filtered, so that the only posts taken into consideration were those which **votes score** is a **positive number**, and those which **title** is **non-empty**. The table presented in output includes the __*title*__ of the post, the __*full*__ date of posting it, its __*ID number*__, as well as __*votes scoreboards*__, divided on votes given __*before, during and after*__ the pandemic. Additionally, a __*total votes score*__ for each post was provided as the last column.
+
+Similarly to the previous query, we again need to define which tables to evaluate first. The output requires joining the given table **_Posts_** with a custom table **_VotesByAge_**, declared in code as **_vba_**. To create the *vba* table, we need to create a specific table based on **_Votes_**, which, among others, includes a column describing the posting time relative to the COVID pandemic - posts with date year less than 2019 are denoted with a word __"before"__, posts from between year 2019 and 2021 receive a label __"during"__ and posts from 2022 (the only year present in data after the pandemic) get __"after"__. Additionally, the only posts considered are those with so called __*vote type*__ equal to either **3, 4 or 12**. Having the *VotesDates* table prepared, it is possible to evaluate *VotesByAge*. This table counts the votes relying on the before-during-after label, and counts the total value of them. Finally, the last table makes sure that the records in it are only those which satisfy the requirements regarding the title and the score of votes given during the pandemic, mentioned above.  
+
+#### Output Correctness Comparison
+
+
+```{r warning=FALSE, message=FALSE}
+rbind(
+  all_equal(sqldf_5(Posts, Votes),base_5(Posts, Votes),convert = TRUE),
+  all_equal(sqldf_5(Posts, Votes),dplyr_5(Posts, Votes),convert = TRUE),
+  all_equal(sqldf_5(Posts, Votes),data.table_5(Posts, Votes),convert = TRUE)
+     )
+
+```
+
+#### Execution Time Comparison
+
+
+```{r warning=FALSE, message=FALSE}
+microbenchmark::microbenchmark(
+  sqldf=sqldf_5(Posts, Votes),
+  base=base_5(Posts, Votes),
+  dplyr=dplyr_5(Posts, Votes),
+  data.table=data.table_5(Posts, Votes),
+  times = 5
+)
+```
+
+## Conclusions
+
+Judging by the results of comparison function *all_equal()*, shown in the **Output Correctness Comparison** sub points, it is clear that the results of the functions are equal to one another. 
+
+
+The execution times give an insight into the efficiency of each method. The best measurement to draw conclusions from would be the *mean* value of the execution times. The actual computation time very much relies on the capabilities of the processing unit used for them, so the numbers themselves show little about method application efficiency. In most queries, using *sqldf()* function gives the output of the longest time, compared to other solutions. The *base functions* are usually slightly more efficient, whereas the functions from libraries *dplyr* and *data.table*, in most cases and if applied correctly, provide the fastest computation of the result. Moreover, both *dplyr* and *data.table* functions are very intuitive, which could be noticed from less number of comments in the *dplyr* and *data.table* code. Many comments were unnecessary due to a suggestive name of a function or a clear way of using it. It turns out to be very helpful both for people who are writing the code and for other programmers who analyse the ready code for different purposes. In some queries, the execution time is marginally bigger in *base*, *dplyr()* and *data.table* functions than in the *sqldf()* function, which may have different reasons, for example not optimal enough usage of the functions or an approach of the solution that could have been chosen different. Either way, the main goal of the task has been reached for all queries in satisfactory time. 
